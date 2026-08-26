@@ -1,5 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+const DEFAULT_SYSTEM_PROMPT = `You are a WebMCP Design Assistant. You help users build, style, and structure websites in real-time.
+You communicate with a visual preview canvas using the following registered WebMCP tools:
+
+1. addSection({ type: "hero" | "features" | "pricing" | "contact" | "gallery", content: {...} })
+   - Content schemas:
+     * hero: { title, tagline, description, primaryCtaText, primaryCtaLink, secondaryCtaText, secondaryCtaLink, imageUrl, align: "left" | "center" }
+     * features: { title, tagline, description, columns: 2 | 3, items: [{ icon, title, description }, ...] }
+     * pricing: { title, description, plans: [{ title, price, period, description, buttonText, features: [], popular: true | false }, ...] }
+     * contact: { title, description, layout: "grid" | "stacked", buttonText, infoTitle, infoDescription, phone, email, address }
+     * gallery: { title, description, images: [{ url, title, description }, ...] }
+2. editSectionText({ sectionId, updates })
+   - updates is an object containing text fields to override (e.g., { title: "New Title" })
+3. updateStyling({ primaryColor, bgColor, textColor, borderRadius, fontFamily })
+   - fontFamily option enum: "'Inter', sans-serif" | "'Playfair Display', serif" | "'Roboto Mono', monospace"
+   - borderRadius option enum: "0px" | "0.25rem" | "0.5rem" | "1rem" | "9999px"
+4. swapLayout({ sectionId, layoutKey, value })
+   - layoutKey: "align" for hero, "columns" for features, "layout" for contact.
+5. deleteSection({ sectionId })
+
+When the user asks you to build, style, delete, or modify sections, you MUST output the corresponding tool call(s) inside a JSON block wrapped in \`\`\`json ... \`\`\` code fences at the very end of your response, like this:
+\`\`\`json
+[
+  {
+    "tool": "addSection",
+    "args": {
+      "type": "hero",
+      "content": {
+        "title": "Welcome to my portal",
+        "tagline": "Innovative web design",
+        "description": "...",
+        "imageUrl": "...",
+        "align": "center"
+      }
+    }
+  }
+]
+\`\`\`
+Provide a helpful, friendly message explaining what changes you are applying, and append the JSON block. Do not mention the tools by name to the user, just explain the updates.`;
+
 export default function ChatSidebar({
   sections,
   styling,
@@ -10,22 +49,51 @@ export default function ChatSidebar({
   deleteSection,
   getCanvasState,
 }) {
+  // 1. Core States
   const [messages, setMessages] = useState([
     {
       sender: 'agent',
-      text: "Hi! I am your WebMCP Design Agent. I can manage and style your website dynamically. Try using the quick actions below or type a instruction (e.g., 'add hero', 'make the theme dark', 'set primary color to #f43f5e').",
+      text: "Hi! I am your WebMCP Design Agent. I can manage and style your website dynamically. Try using the presets or type a command (e.g., 'make the theme dark', 'add a features grid').\n\n⚙️ Click the Gear icon above to configure a live Gemini/OpenAI API key!",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
   const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // 2. LocalStorage API Configuration States
+  const [apiProvider, setApiProvider] = useState(
+    localStorage.getItem('siteagent_api_provider') || 'built-in'
+  );
+  const [apiKey, setApiKey] = useState(
+    localStorage.getItem('siteagent_api_key') || ''
+  );
+  const [systemPrompt, setSystemPrompt] = useState(
+    localStorage.getItem('siteagent_system_prompt') || DEFAULT_SYSTEM_PROMPT
+  );
+
   const chatEndRef = useRef(null);
 
-  // Auto-scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
-  // Visual Helper: Add tool execution log to chat
+  // Sync API configurations to LocalStorage
+  const saveSettings = () => {
+    localStorage.setItem('siteagent_api_provider', apiProvider);
+    localStorage.setItem('siteagent_api_key', apiKey);
+    localStorage.setItem('siteagent_system_prompt', systemPrompt);
+    setShowSettings(false);
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: 'system',
+        text: `Settings Saved. Provider switched to: ${apiProvider.toUpperCase()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
+
   const logToolCall = (toolName, args, result) => {
     setMessages((prev) => [
       ...prev,
@@ -38,26 +106,167 @@ export default function ChatSidebar({
     ]);
   };
 
-  const handleCommand = (text) => {
+  // 3. LLM API Core Integration
+  const callLLM = async (userPrompt) => {
+    setLoading(true);
+    let agentReply = "";
+    
+    try {
+      if (apiProvider === 'gemini') {
+        if (!apiKey) throw new Error("Gemini API key is missing. Open settings and enter your API key.");
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        // Compile full chat history into prompt context
+        const historyText = messages
+          .filter(m => m.sender !== 'system')
+          .map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
+          .join('\n');
+          
+        const fullPrompt = `${systemPrompt}\n\n--- Canvas Current JSON State ---\n${JSON.stringify(getCanvasState(), null, 2)}\n\n--- Conversation History ---\n${historyText}\nUser: ${userPrompt}\nAssistant:`;
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }]
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error?.message || "Gemini API call failed.");
+        }
+
+        const data = await res.json();
+        agentReply = data.candidates[0].content.parts[0].text;
+
+      } else if (apiProvider === 'openai') {
+        if (!apiKey) throw new Error("OpenAI API key is missing. Open settings and enter your API key.");
+        const url = `https://api.openai.com/v1/chat/completions`;
+
+        const apiMessages = [
+          { role: 'system', content: `${systemPrompt}\n\nCanvas Current JSON State:\n${JSON.stringify(getCanvasState(), null, 2)}` },
+          ...messages
+            .filter(m => m.sender !== 'system')
+            .map(m => ({
+              role: m.sender === 'user' ? 'user' : 'assistant',
+              content: m.text
+            })),
+          { role: 'user', content: userPrompt }
+        ];
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: apiMessages
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error?.message || "OpenAI API call failed.");
+        }
+
+        const data = await res.json();
+        agentReply = data.choices[0].message.content;
+      }
+
+      // Parse agent output for WebMCP JSON block
+      const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+      const match = agentReply.match(jsonRegex);
+      let cleanText = agentReply.replace(jsonRegex, '').trim();
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'agent',
+          text: cleanText || "Applying visual updates to the canvas...",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+
+      if (match) {
+        try {
+          const toolCalls = JSON.parse(match[1]);
+          if (Array.isArray(toolCalls)) {
+            // Sequential execution of tool calls
+            toolCalls.forEach((call) => {
+              executeMCPTool(call.tool, call.args);
+            });
+          }
+        } catch (jsonErr) {
+          console.error("Failed to parse agent tool JSON block", jsonErr);
+        }
+      }
+
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'agent',
+          text: `❌ Error: ${err.message}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeMCPTool = (tool, args) => {
+    try {
+      switch (tool) {
+        case 'addSection':
+          addSection(args.type, args.content);
+          logToolCall('addSection', args, { success: true });
+          break;
+        case 'editSectionText':
+          editSectionText(args.sectionId, args.updates);
+          logToolCall('editSectionText', args, { success: true });
+          break;
+        case 'updateStyling':
+          updateStyling(args);
+          logToolCall('updateStyling', args, { success: true });
+          break;
+        case 'swapLayout':
+          swapLayout(args.sectionId, args.layoutKey, args.value);
+          logToolCall('swapLayout', args, { success: true });
+          break;
+        case 'deleteSection':
+          deleteSection(args.sectionId);
+          logToolCall('deleteSection', args, { success: true });
+          break;
+        default:
+          console.warn("Unknown tool: ", tool);
+      }
+    } catch (e) {
+      console.error("Error executing mcp tool ", tool, e);
+    }
+  };
+
+  // 4. Fallback Offline Rule-Based command parser
+  const handleOfflineCommand = (text) => {
     const prompt = text.toLowerCase().trim();
     let responseText = "I didn't quite catch that command. Try using one of the quick presets or write a command like 'add features' or 'change background to slate'.";
     let matched = false;
 
-    // NLP Handler: PDF/PPTX slide decks
+    // PDF/PPTX query
     if (prompt.includes('pdf') || prompt.includes('pptx') || prompt.includes('slides') || prompt.includes('presentation')) {
       responseText = "I am a WebMCP Visual Site Builder agent. I construct and style live web layouts. While I cannot generate PowerPoint or PDF files directly, you can easily save your designed web page as a PDF by pressing Ctrl+P (or Cmd+P on Mac) in your browser, or export the structured layout JSON using the 'Export JSON' button at the top!";
       matched = true;
     }
-    // NLP Handler: University / Education themes
+    // University / Education themes
     else if (prompt.includes('university') || prompt.includes('college') || prompt.includes('school') || prompt.includes('education')) {
       const academicStyling = {
         primaryColor: '#1e3a8a', // Navy blue
         primaryHover: '#172554',
         bgColor: '#ffffff',
-        bgAltColor: '#f8fafc',
         textColor: '#0f172a',
-        textMutedColor: '#475569',
-        borderRadius: '0.25rem',
         fontFamily: "'Playfair Display', serif",
       };
       updateStyling(academicStyling);
@@ -94,13 +303,13 @@ export default function ChatSidebar({
       responseText = "Built an academic university homepage preset! Set theme to classic navy serif typography, and generated dedicated Hero and campus Features sections for freshers.";
       matched = true;
     }
-    // NLP Handler: Change / Set Title
+    // Edit title
     else if (prompt.includes('change title') || prompt.includes('set title')) {
       const titleMatch = text.match(/(?:change|set)\s+(?:the\s+)?title\s+to\s+(.+)/i);
       if (titleMatch) {
         const newTitle = titleMatch[1];
         const currentSections = getCanvasState().sections;
-        const targetSecId = selectedSectionId || (currentSections[0] && currentSections[0].id);
+        const targetSecId = currentSections[0] && currentSections[0].id;
         if (targetSecId) {
           editSectionText(targetSecId, { title: newTitle });
           logToolCall('editSectionText', { sectionId: targetSecId, updates: { title: newTitle } }, { success: true });
@@ -112,13 +321,13 @@ export default function ChatSidebar({
         }
       }
     }
-    // NLP Handler: Change / Set Description
+    // Edit description
     else if (prompt.includes('change description') || prompt.includes('set description')) {
       const descMatch = text.match(/(?:change|set)\s+(?:the\s+)?description\s+to\s+(.+)/i);
       if (descMatch) {
         const newDesc = descMatch[1];
         const currentSections = getCanvasState().sections;
-        const targetSecId = selectedSectionId || (currentSections[0] && currentSections[0].id);
+        const targetSecId = currentSections[0] && currentSections[0].id;
         if (targetSecId) {
           editSectionText(targetSecId, { description: newDesc });
           logToolCall('editSectionText', { sectionId: targetSecId, updates: { description: newDesc } }, { success: true });
@@ -130,14 +339,11 @@ export default function ChatSidebar({
         }
       }
     }
-
-    // 1. Theme and Color Updates
+    // Colors and Themes
     else if (prompt.includes('dark') && (prompt.includes('theme') || prompt.includes('mode') || prompt.includes('make') || prompt.includes('slate'))) {
       const updates = {
-        bgColor: '#0f172a',
-        bgAltColor: '#1e293b',
+        bgColor: '#0b0f19',
         textColor: '#f8fafc',
-        textMutedColor: '#94a3b8',
         primaryColor: '#10b981',
         primaryHover: '#059669',
       };
@@ -148,9 +354,7 @@ export default function ChatSidebar({
     } else if (prompt.includes('light') && (prompt.includes('theme') || prompt.includes('mode') || prompt.includes('make') || prompt.includes('clean'))) {
       const updates = {
         bgColor: '#ffffff',
-        bgAltColor: '#f9fafb',
         textColor: '#111827',
-        textMutedColor: '#6b7280',
         primaryColor: '#3b82f6',
         primaryHover: '#2563eb',
       };
@@ -171,13 +375,6 @@ export default function ChatSidebar({
       updateStyling(updates);
       logToolCall('updateStyling', updates, { success: true });
       responseText = `Updated canvas background color to ${color}.`;
-      matched = true;
-    } else if (prompt.match(/(?:set|change)?\s*text\s*(?:color)?\s*(?:to)?\s*(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)/)) {
-      const color = prompt.match(/(?:set|change)?\s*text\s*(?:color)?\s*(?:to)?\s*(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)/)[1];
-      const updates = { textColor: color };
-      updateStyling(updates);
-      logToolCall('updateStyling', updates, { success: true });
-      responseText = `Updated text color to ${color}.`;
       matched = true;
     } else if (prompt.includes('round') || prompt.includes('corner') || prompt.includes('border radius')) {
       let radius = '0.5rem';
@@ -202,7 +399,7 @@ export default function ChatSidebar({
       matched = true;
     }
 
-    // 2. Add Sections
+    // Add Sections
     if (prompt.includes('add hero') || prompt.includes('insert hero')) {
       const content = {
         title: "Build the Future with AI Agents",
@@ -281,7 +478,7 @@ export default function ChatSidebar({
       matched = true;
     }
 
-    // 3. Layout updates and deletion
+    // Align hero layout
     if (prompt.includes('align hero') || prompt.includes('center hero')) {
       const currentSections = getCanvasState().sections;
       const heroSec = currentSections.find((s) => s.type === 'hero');
@@ -297,6 +494,7 @@ export default function ChatSidebar({
       }
     }
 
+    // Delete section
     if (prompt.match(/(?:delete|remove)\s*([a-zA-Z0-9-]+)/)) {
       const secId = prompt.match(/(?:delete|remove)\s*([a-zA-Z0-9-]+)/)[1];
       const currentSections = getCanvasState().sections;
@@ -309,7 +507,6 @@ export default function ChatSidebar({
       }
     }
 
-    // Default reply
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
@@ -325,6 +522,7 @@ export default function ChatSidebar({
   const handleSend = () => {
     if (!inputText.trim()) return;
     const text = inputText;
+    
     setMessages((prev) => [
       ...prev,
       {
@@ -334,7 +532,12 @@ export default function ChatSidebar({
       },
     ]);
     setInputText('');
-    handleCommand(text);
+
+    if (apiProvider === 'built-in') {
+      handleOfflineCommand(text);
+    } else {
+      callLLM(text);
+    }
   };
 
   const executePreset = (presetCommand) => {
@@ -346,10 +549,14 @@ export default function ChatSidebar({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
-    handleCommand(presetCommand);
+    
+    if (apiProvider === 'built-in') {
+      handleOfflineCommand(presetCommand);
+    } else {
+      callLLM(presetCommand);
+    }
   };
 
-  // Preset composite flows
   const buildSaaSSite = () => {
     setMessages((prev) => [
       ...prev,
@@ -361,24 +568,111 @@ export default function ChatSidebar({
     ]);
     
     // Add sections sequentially
-    setTimeout(() => handleCommand("add hero"), 100);
-    setTimeout(() => handleCommand("add features"), 600);
-    setTimeout(() => handleCommand("add pricing"), 1100);
-    setTimeout(() => handleCommand("add contact"), 1600);
+    setTimeout(() => {
+      if (apiProvider === 'built-in') handleOfflineCommand("add hero");
+      else callLLM("add hero");
+    }, 100);
+    setTimeout(() => {
+      if (apiProvider === 'built-in') handleOfflineCommand("add features");
+      else callLLM("add features");
+    }, 600);
+    setTimeout(() => {
+      if (apiProvider === 'built-in') handleOfflineCommand("add pricing");
+      else callLLM("add pricing");
+    }, 1100);
+    setTimeout(() => {
+      if (apiProvider === 'built-in') handleOfflineCommand("add contact");
+      else callLLM("add contact");
+    }, 1600);
   };
 
   return (
-    <div className="w-full h-full bg-slate-900 border-l border-slate-800 flex flex-col justify-between">
+    <div className="w-full h-full bg-slate-900 border-l border-slate-800 flex flex-col justify-between overflow-hidden">
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/20">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
           <h3 className="font-bold text-sm tracking-wide text-slate-200">WEBMCP AGENT SIMULATOR</h3>
         </div>
-        <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded">
-          v1.0 (Devpost)
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+            title="AI Key Settings"
+          >
+            ⚙️
+          </button>
+          <span className="text-[9px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded">
+            v1.1
+          </span>
+        </div>
       </div>
+
+      {/* ⚙️ Slide-Down Settings Panel */}
+      {showSettings && (
+        <div className="p-4 border-b border-slate-800 bg-slate-950/90 text-xs flex flex-col gap-3 animate-slide-down">
+          <div className="flex justify-between items-center pb-1">
+            <h4 className="font-bold uppercase tracking-wider text-slate-400 text-[10px]">AI Integration Settings</h4>
+            <button onClick={() => setShowSettings(false)} className="text-slate-500 hover:text-slate-300">✕</button>
+          </div>
+          
+          <div className="flex flex-col gap-1">
+            <label className="text-[9px] text-slate-500 font-bold uppercase">AI Provider</label>
+            <select
+              value={apiProvider}
+              onChange={(e) => setApiProvider(e.target.value)}
+              className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+            >
+              <option value="built-in">Offline Simulator (No API Key Required)</option>
+              <option value="gemini">Gemini API (Google)</option>
+              <option value="openai">OpenAI API (GPT-4o-mini)</option>
+            </select>
+          </div>
+
+          {apiProvider !== 'built-in' && (
+            <div className="flex flex-col gap-1 animate-fade-in">
+              <label className="text-[9px] text-slate-500 font-bold uppercase">API Private Key</label>
+              <input
+                type="password"
+                placeholder="Paste your API key here..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              />
+              <span className="text-[9px] text-slate-500 italic mt-0.5">Stored locally in your browser's localStorage.</span>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[9px] text-slate-500 font-bold uppercase">System Prompt (Train the AI)</label>
+            <textarea
+              rows="4"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-[10px] text-slate-300 font-mono focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end mt-1">
+            <button
+              onClick={saveSettings}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition"
+            >
+              Save & Apply
+            </button>
+            <button
+              onClick={() => {
+                setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+                setApiProvider('built-in');
+                setApiKey('');
+              }}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 font-semibold rounded text-[10px] transition"
+            >
+              Reset Defaults
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Messages Log */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
@@ -393,14 +687,12 @@ export default function ChatSidebar({
                 : 'self-start items-start'
             }`}
           >
-            {/* Header / Timestamp */}
             <span className="text-[9px] text-slate-500 mb-1 px-1">
               {msg.sender === 'user' ? 'User' : msg.sender === 'system' ? 'System Logs' : 'SiteAgent AI'} • {msg.timestamp}
             </span>
 
-            {/* Bubble */}
             <div
-              className={`p-3 text-xs leading-relaxed rounded-lg ${
+              className={`p-3 text-xs leading-relaxed rounded-lg whitespace-pre-line ${
                 msg.sender === 'user'
                   ? 'bg-blue-600 text-white rounded-br-none'
                   : msg.sender === 'system'
@@ -410,13 +702,24 @@ export default function ChatSidebar({
             >
               <div>{msg.text}</div>
               {msg.details && (
-                <pre className="mt-2 p-2 bg-slate-900 border border-slate-800 rounded text-[9px] text-slate-300 overflow-x-auto">
+                <pre className="mt-2 p-2 bg-slate-900 border border-slate-800 rounded text-[9px] text-slate-300 overflow-x-auto whitespace-pre">
                   {msg.details}
                 </pre>
               )}
             </div>
           </div>
         ))}
+        {loading && (
+          <div className="self-start flex flex-col items-start max-w-[85%]">
+            <span className="text-[9px] text-slate-500 mb-1 px-1">SiteAgent AI • Thinking...</span>
+            <div className="p-3 text-xs rounded-lg rounded-bl-none bg-slate-800/60 border border-slate-700/30 text-slate-400 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"></span>
+              <span>Thinking and formulating design tools...</span>
+            </div>
+          </div>
+        )}
         <div ref={chatEndRef} />
       </div>
 
@@ -472,7 +775,7 @@ export default function ChatSidebar({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Ask agent to add/style page..."
+          placeholder={apiProvider === 'built-in' ? "Ask agent to add/style page..." : `Chat with AI agent (${apiProvider})...`}
           className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-700"
         />
         <button
