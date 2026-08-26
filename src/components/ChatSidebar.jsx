@@ -68,6 +68,12 @@ export default function ChatSidebar({
   const [apiKey, setApiKey] = useState(
     localStorage.getItem('siteagent_api_key') || ''
   );
+  const [geminiModel, setGeminiModel] = useState(
+    localStorage.getItem('siteagent_gemini_model') || 'gemini-2.5-flash'
+  );
+  const [openaiModel, setOpenaiModel] = useState(
+    localStorage.getItem('siteagent_openai_model') || 'gpt-4o-mini'
+  );
   const [systemPrompt, setSystemPrompt] = useState(
     localStorage.getItem('siteagent_system_prompt') || DEFAULT_SYSTEM_PROMPT
   );
@@ -82,13 +88,15 @@ export default function ChatSidebar({
   const saveSettings = () => {
     localStorage.setItem('siteagent_api_provider', apiProvider);
     localStorage.setItem('siteagent_api_key', apiKey);
+    localStorage.setItem('siteagent_gemini_model', geminiModel);
+    localStorage.setItem('siteagent_openai_model', openaiModel);
     localStorage.setItem('siteagent_system_prompt', systemPrompt);
     setShowSettings(false);
     setMessages((prev) => [
       ...prev,
       {
         sender: 'system',
-        text: `Settings Saved. Provider switched to: ${apiProvider.toUpperCase()}`,
+        text: `Settings Saved. Provider: ${apiProvider.toUpperCase()} | Model: ${apiProvider === 'gemini' ? geminiModel : openaiModel}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
@@ -114,7 +122,7 @@ export default function ChatSidebar({
     try {
       if (apiProvider === 'gemini') {
         if (!apiKey) throw new Error("Gemini API key is missing. Open settings and enter your API key.");
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
         
         // Compile full chat history into prompt context
         const historyText = messages
@@ -162,7 +170,7 @@ export default function ChatSidebar({
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: openaiModel,
             messages: apiMessages
           })
         });
@@ -628,6 +636,32 @@ export default function ChatSidebar({
               <option value="openai">OpenAI API (GPT-4o-mini)</option>
             </select>
           </div>
+
+          {apiProvider === 'gemini' && (
+            <div className="flex flex-col gap-1 animate-fade-in">
+              <label className="text-[9px] text-slate-500 font-bold uppercase">Gemini Model ID</label>
+              <input
+                type="text"
+                placeholder="e.g., gemini-2.5-flash or gemini-1.5-flash"
+                value={geminiModel}
+                onChange={(e) => setGeminiModel(e.target.value)}
+                className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              />
+            </div>
+          )}
+
+          {apiProvider === 'openai' && (
+            <div className="flex flex-col gap-1 animate-fade-in">
+              <label className="text-[9px] text-slate-500 font-bold uppercase">OpenAI Model ID</label>
+              <input
+                type="text"
+                placeholder="e.g., gpt-4o-mini"
+                value={openaiModel}
+                onChange={(e) => setOpenaiModel(e.target.value)}
+                className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              />
+            </div>
+          )}
 
           {apiProvider !== 'built-in' && (
             <div className="flex flex-col gap-1 animate-fade-in">
