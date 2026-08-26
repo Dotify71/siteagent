@@ -70,11 +70,38 @@ export default function App() {
     );
   };
 
+// Helper functions to calculate a contrasting bgAltColor (card background) based on the bgColor (page background)
+function adjustColorBrightness(hex, percent) {
+  let num = parseInt(hex.replace("#",""), 16),
+  amt = Math.round(2.55 * percent),
+  R = (num >> 16) + amt,
+  G = (num >> 8 & 0x00FF) + amt,
+  B = (num & 0x0000FF) + amt;
+  return "#" + (0x1000000 + (R<255?R<0?0:R:255)*0x10000 + (G<255?G<0?0:G:255)*0x100 + (B<255?B<0?0:B:255)).toString(16).slice(1);
+}
+
+function getAltBackgroundColor(hex) {
+  if (!hex || !hex.startsWith('#')) return '#f9fafb';
+  const c = hex.substring(1);
+  const rgb = parseInt(c, 16);
+  const r = (rgb >> 16) & 0xff;
+  const g = (rgb >> 8) & 0xff;
+  const b = (rgb >> 0) & 0xff;
+  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // If light background, make cards 5% darker. If dark, make cards 8% lighter.
+  return luma > 128 ? adjustColorBrightness(hex, -5) : adjustColorBrightness(hex, 8);
+}
+
   const updateStyling = (updates) => {
-    setStyling((prev) => ({
-      ...prev,
-      ...updates,
-    }));
+    setStyling((prev) => {
+      const newStyling = { ...prev, ...updates };
+      // If page background (bgColor) was updated, and no explicit alternative card background (bgAltColor) was provided,
+      // dynamically compute the optimal card background color to maintain visual balance.
+      if (updates.bgColor && !updates.bgAltColor) {
+        newStyling.bgAltColor = getAltBackgroundColor(updates.bgColor);
+      }
+      return newStyling;
+    });
   };
 
   const swapLayout = (sectionId, layoutKey, value) => {

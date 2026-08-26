@@ -63,7 +63,7 @@ export const FeaturesSection = ({ id, content, styles }) => {
   const cols = content.columns === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3';
 
   return (
-    <section id={id} className="py-20 px-6 md:px-12 bg-bg-alt text-text transition-colors duration-300">
+    <section id={id} className="py-20 px-6 md:px-12 bg-bg text-text transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16 flex flex-col gap-4">
           {content.tagline && (
@@ -79,7 +79,7 @@ export const FeaturesSection = ({ id, content, styles }) => {
           {(content.items || []).map((item, idx) => (
             <div
               key={idx}
-              className="p-8 bg-bg border border-gray-100 dark:border-gray-800 rounded-custom shadow-md hover:shadow-xl transition-all duration-300 flex flex-col gap-4"
+              className="p-8 bg-bg-alt border border-gray-100 dark:border-gray-800 rounded-custom shadow-md hover:shadow-xl transition-all duration-300 flex flex-col gap-4"
             >
               <div className="w-12 h-12 bg-primary/10 rounded-custom flex items-center justify-center text-primary text-2xl">
                 {item.icon || '🚀'}
@@ -162,7 +162,7 @@ export const ContactSection = ({ id, content, styles }) => {
   const containerClass = isGrid ? 'md:grid-cols-2 gap-12' : 'max-w-2xl mx-auto gap-8';
 
   return (
-    <section id={id} className="py-20 px-6 md:px-12 bg-bg-alt text-text transition-colors duration-300">
+    <section id={id} className="py-20 px-6 md:px-12 bg-bg text-text transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16 flex flex-col gap-4">
           <h2 className="text-3xl md:text-4xl font-bold font-custom">{content.title || 'Get In Touch'}</h2>
@@ -173,14 +173,14 @@ export const ContactSection = ({ id, content, styles }) => {
           {/* Form Card */}
           <form
             onSubmit={(e) => e.preventDefault()}
-            className="p-8 bg-bg rounded-custom border border-gray-100 dark:border-gray-800 shadow-md flex flex-col gap-6"
+            className="p-8 bg-bg-alt rounded-custom border border-gray-100 dark:border-gray-800 shadow-md flex flex-col gap-6"
           >
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-text uppercase">Full Name</label>
               <input
                 type="text"
                 placeholder="John Doe"
-                className="px-4 py-3 bg-bg-alt border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none"
+                className="px-4 py-3 bg-bg border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -188,7 +188,7 @@ export const ContactSection = ({ id, content, styles }) => {
               <input
                 type="email"
                 placeholder="john@example.com"
-                className="px-4 py-3 bg-bg-alt border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none"
+                className="px-4 py-3 bg-bg border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -196,7 +196,7 @@ export const ContactSection = ({ id, content, styles }) => {
               <textarea
                 rows="4"
                 placeholder="Tell us about your project..."
-                className="px-4 py-3 bg-bg-alt border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                className="px-4 py-3 bg-bg border border-gray-200 dark:border-gray-800 rounded-custom text-text focus:ring-2 focus:ring-primary focus:outline-none resize-none"
               ></textarea>
             </div>
             <button className="py-3 px-6 bg-primary hover:bg-primary-hover text-white font-semibold rounded-custom transition-all duration-200 shadow-md active:scale-95">
