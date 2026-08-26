@@ -29,3 +29,49 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* Print Styling to hide dashboard controls and print ONLY the visual canvas website */
+@media print {
+  header,
+  aside,
+  button,
+  .absolute.top-2.left-2.z-20 {
+    display: none !important;
+  }
+
+  body, 
+  #root, 
+  .flex, 
+  .flex-col, 
+  .flex-row, 
+  main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .shadow-inner,
+  .border,
+  .border-2,
+  .rounded-lg,
+  .ring-2 {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  section {
+    page-break-inside: avoid;
+  }
+}
