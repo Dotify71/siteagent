@@ -19,7 +19,12 @@ You communicate with a visual preview canvas using the following registered WebM
    - layoutKey: "align" for hero, "columns" for features, "layout" for contact.
 5. deleteSection({ sectionId })
 
-When the user asks you to build, style, delete, or modify sections, you MUST output the corresponding tool call(s) inside a JSON block wrapped in \`\`\`json ... \`\`\` code fences at the very end of your response, like this:
+When the user asks you to build, style, delete, or modify sections, you MUST output the corresponding tool call(s) inside a JSON block wrapped in \`\`\`json ... \`\`\` code fences at the very end of your response.
+
+CRITICAL INSTRUCTION FOR MULTI-PAGE/COMPOSITE REQUESTS:
+If the user specifies a numbered list of pages or sections (for example, "Create exactly 10 pages"), you MUST output a separate 'addSection' tool call for EVERY SINGLE requested page/section in order. Do not skip, merge, combine, or omit any pages. Even if the output is long, generate all of them to construct the complete multi-page document on the canvas.
+
+Example tool output format:
 \`\`\`json
 [
   {
