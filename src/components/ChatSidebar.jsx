@@ -69,7 +69,7 @@ export default function ChatSidebar({
     localStorage.getItem('siteagent_api_key') || ''
   );
   const [geminiModel, setGeminiModel] = useState(
-    localStorage.getItem('siteagent_gemini_model') || 'gemini-2.5-flash'
+    localStorage.getItem('siteagent_gemini_model') || 'gemini-3.6-flash'
   );
   const [openaiModel, setOpenaiModel] = useState(
     localStorage.getItem('siteagent_openai_model') || 'gpt-4o-mini'
