@@ -195,7 +195,8 @@ export default function ChatSidebar({
 
     // 3. Layout updates and deletion
     if (prompt.includes('align hero') || prompt.includes('center hero')) {
-      const heroSec = sections.find((s) => s.type === 'hero');
+      const currentSections = getCanvasState().sections;
+      const heroSec = currentSections.find((s) => s.type === 'hero');
       if (heroSec) {
         const align = prompt.includes('center') ? 'center' : 'left';
         swapLayout(heroSec.id, 'align', align);
@@ -210,7 +211,8 @@ export default function ChatSidebar({
 
     if (prompt.match(/(?:delete|remove)\s*([a-zA-Z0-9-]+)/)) {
       const secId = prompt.match(/(?:delete|remove)\s*([a-zA-Z0-9-]+)/)[1];
-      const targetSec = sections.find(s => s.id.toLowerCase() === secId || s.type.toLowerCase() === secId);
+      const currentSections = getCanvasState().sections;
+      const targetSec = currentSections.find(s => s.id.toLowerCase() === secId || s.type.toLowerCase() === secId);
       if (targetSec) {
         deleteSection(targetSec.id);
         logToolCall('deleteSection', { sectionId: targetSec.id }, { success: true });
@@ -376,18 +378,18 @@ export default function ChatSidebar({
       </div>
 
       {/* Input Form */}
-      <div className="p-3 border-t border-slate-800 bg-slate-900 flex gap-2">
+      <div className="p-4 border-t border-slate-800 bg-slate-900 flex gap-2.5">
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Ask agent to add/style page..."
-          className="flex-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-700"
+          className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-700"
         />
         <button
           onClick={handleSend}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded text-xs transition"
+          className="px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition active:scale-95"
         >
           Send
         </button>

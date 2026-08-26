@@ -2,12 +2,16 @@ import React from 'react';
 
 // Hero Section Component
 export const HeroSection = ({ id, content, styles }) => {
-  const alignClass = content.align === 'center' ? 'text-center items-center' : 'text-left items-start';
+  const isCentered = content.align === 'center';
+  const containerClass = isCentered 
+    ? 'flex-col text-center items-center max-w-4xl text-center' 
+    : 'flex-col md:flex-row gap-12 items-center justify-between';
+  const alignClass = isCentered ? 'text-center items-center' : 'text-left items-start';
   const hasImage = !!content.imageUrl;
 
   return (
     <section id={id} className="py-20 px-6 md:px-12 bg-bg text-text transition-colors duration-300">
-      <div className={`max-w-6xl mx-auto flex flex-col md:flex-row gap-12 items-center justify-between`}>
+      <div className={`max-w-6xl mx-auto flex ${containerClass}`}>
         <div className={`flex flex-col flex-1 ${alignClass} gap-6`}>
           {content.tagline && (
             <span className="text-primary font-semibold text-sm tracking-wider uppercase bg-primary/10 px-3 py-1 rounded-custom">
@@ -17,10 +21,10 @@ export const HeroSection = ({ id, content, styles }) => {
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-custom leading-tight">
             {content.title || 'Draft Heading'}
           </h1>
-          <p className="text-text-muted text-lg max-w-2xl font-light">
+          <p className="text-text-muted text-lg max-w-2xl font-light mx-auto">
             {content.description || 'Provide details about your page here.'}
           </p>
-          <div className="flex flex-wrap gap-4 mt-2">
+          <div className="flex flex-wrap gap-4 mt-2 justify-center">
             {content.primaryCtaText && (
               <a
                 href={content.primaryCtaLink || '#'}
@@ -41,7 +45,7 @@ export const HeroSection = ({ id, content, styles }) => {
         </div>
         
         {hasImage && (
-          <div className="flex-1 w-full max-w-lg">
+          <div className={`flex-1 w-full max-w-lg ${isCentered ? 'mt-12' : ''}`}>
             <img
               src={content.imageUrl}
               alt={content.title}
