@@ -43,8 +43,96 @@ export default function ChatSidebar({
     let responseText = "I didn't quite catch that command. Try using one of the quick presets or write a command like 'add features' or 'change background to slate'.";
     let matched = false;
 
+    // NLP Handler: PDF/PPTX slide decks
+    if (prompt.includes('pdf') || prompt.includes('pptx') || prompt.includes('slides') || prompt.includes('presentation')) {
+      responseText = "I am a WebMCP Visual Site Builder agent. I construct and style live web layouts. While I cannot generate PowerPoint or PDF files directly, you can easily save your designed web page as a PDF by pressing Ctrl+P (or Cmd+P on Mac) in your browser, or export the structured layout JSON using the 'Export JSON' button at the top!";
+      matched = true;
+    }
+    // NLP Handler: University / Education themes
+    else if (prompt.includes('university') || prompt.includes('college') || prompt.includes('school') || prompt.includes('education')) {
+      const academicStyling = {
+        primaryColor: '#1e3a8a', // Navy blue
+        primaryHover: '#172554',
+        bgColor: '#ffffff',
+        bgAltColor: '#f8fafc',
+        textColor: '#0f172a',
+        textMutedColor: '#475569',
+        borderRadius: '0.25rem',
+        fontFamily: "'Playfair Display', serif",
+      };
+      updateStyling(academicStyling);
+      logToolCall('updateStyling', academicStyling, { success: true });
+
+      const heroContent = {
+        title: "Welcome to Horizon University",
+        tagline: "Inspiring Leadership & Academic Excellence",
+        description: "Horizon University offers a world-class academic community where freshers and researchers collaborate on groundbreaking research and build future-proof careers.",
+        primaryCtaText: "Apply Online",
+        primaryCtaLink: "#",
+        secondaryCtaText: "Tour Campus",
+        secondaryCtaLink: "#",
+        imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=800&q=80",
+        align: "center",
+      };
+      addSection('hero', heroContent);
+      logToolCall('addSection', { type: 'hero', content: heroContent }, { success: true });
+
+      const featuresContent = {
+        title: "Explore Campus Life",
+        tagline: "Innovation, Community & Culture",
+        description: "Everything you need to succeed as a fresher at our university campus.",
+        columns: 3,
+        items: [
+          { icon: "🎓", title: "World-Class Degrees", description: "Choose from over 50 accredited undergraduate and graduate programs." },
+          { icon: "🏫", title: "Modern Residences", description: "Access state-of-the-art residences, libraries, and student union spaces." },
+          { icon: "🔬", title: "Advanced Research", description: "Collaborate in advanced research centers and get funded internships." },
+        ],
+      };
+      addSection('features', featuresContent);
+      logToolCall('addSection', { type: 'features', content: featuresContent }, { success: true });
+
+      responseText = "Built an academic university homepage preset! Set theme to classic navy serif typography, and generated dedicated Hero and campus Features sections for freshers.";
+      matched = true;
+    }
+    // NLP Handler: Change / Set Title
+    else if (prompt.includes('change title') || prompt.includes('set title')) {
+      const titleMatch = text.match(/(?:change|set)\s+(?:the\s+)?title\s+to\s+(.+)/i);
+      if (titleMatch) {
+        const newTitle = titleMatch[1];
+        const currentSections = getCanvasState().sections;
+        const targetSecId = selectedSectionId || (currentSections[0] && currentSections[0].id);
+        if (targetSecId) {
+          editSectionText(targetSecId, { title: newTitle });
+          logToolCall('editSectionText', { sectionId: targetSecId, updates: { title: newTitle } }, { success: true });
+          responseText = `Successfully changed the title of section #${targetSecId} to "${newTitle}".`;
+          matched = true;
+        } else {
+          responseText = "Please add a section first before changing its title!";
+          matched = true;
+        }
+      }
+    }
+    // NLP Handler: Change / Set Description
+    else if (prompt.includes('change description') || prompt.includes('set description')) {
+      const descMatch = text.match(/(?:change|set)\s+(?:the\s+)?description\s+to\s+(.+)/i);
+      if (descMatch) {
+        const newDesc = descMatch[1];
+        const currentSections = getCanvasState().sections;
+        const targetSecId = selectedSectionId || (currentSections[0] && currentSections[0].id);
+        if (targetSecId) {
+          editSectionText(targetSecId, { description: newDesc });
+          logToolCall('editSectionText', { sectionId: targetSecId, updates: { description: newDesc } }, { success: true });
+          responseText = `Successfully updated description of section #${targetSecId}.`;
+          matched = true;
+        } else {
+          responseText = "Please add a section first before updating its description!";
+          matched = true;
+        }
+      }
+    }
+
     // 1. Theme and Color Updates
-    if (prompt.includes('dark theme') || prompt.includes('make it dark') || prompt.includes('dark mode')) {
+    else if (prompt.includes('dark theme') || prompt.includes('make it dark') || prompt.includes('dark mode')) {
       const updates = {
         bgColor: '#0f172a',
         bgAltColor: '#1e293b',
