@@ -132,7 +132,7 @@ export default function ChatSidebar({
     }
 
     // 1. Theme and Color Updates
-    else if (prompt.includes('dark theme') || prompt.includes('make it dark') || prompt.includes('dark mode')) {
+    else if (prompt.includes('dark') && (prompt.includes('theme') || prompt.includes('mode') || prompt.includes('make') || prompt.includes('slate'))) {
       const updates = {
         bgColor: '#0f172a',
         bgAltColor: '#1e293b',
@@ -145,7 +145,7 @@ export default function ChatSidebar({
       logToolCall('updateStyling', updates, { success: true });
       responseText = "Updated style configuration to a sleek dark slate theme with emerald primary accents.";
       matched = true;
-    } else if (prompt.includes('light theme') || prompt.includes('make it light') || prompt.includes('light mode')) {
+    } else if (prompt.includes('light') && (prompt.includes('theme') || prompt.includes('mode') || prompt.includes('make') || prompt.includes('clean'))) {
       const updates = {
         bgColor: '#ffffff',
         bgAltColor: '#f9fafb',
