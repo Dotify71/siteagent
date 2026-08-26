@@ -74,9 +74,6 @@ export default function ChatSidebar({
   const [openaiModel, setOpenaiModel] = useState(
     localStorage.getItem('siteagent_openai_model') || 'gpt-4o-mini'
   );
-  const [systemPrompt, setSystemPrompt] = useState(
-    localStorage.getItem('siteagent_system_prompt') || DEFAULT_SYSTEM_PROMPT
-  );
 
   const chatEndRef = useRef(null);
 
@@ -90,7 +87,6 @@ export default function ChatSidebar({
     localStorage.setItem('siteagent_api_key', apiKey);
     localStorage.setItem('siteagent_gemini_model', geminiModel);
     localStorage.setItem('siteagent_openai_model', openaiModel);
-    localStorage.setItem('siteagent_system_prompt', systemPrompt);
     setShowSettings(false);
     setMessages((prev) => [
       ...prev,
@@ -130,7 +126,7 @@ export default function ChatSidebar({
           .map(m => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
           .join('\n');
           
-        const fullPrompt = `${systemPrompt}\n\n--- Canvas Current JSON State ---\n${JSON.stringify(getCanvasState(), null, 2)}\n\n--- Conversation History ---\n${historyText}\nUser: ${userPrompt}\nAssistant:`;
+        const fullPrompt = `${DEFAULT_SYSTEM_PROMPT}\n\n--- Canvas Current JSON State ---\n${JSON.stringify(getCanvasState(), null, 2)}\n\n--- Conversation History ---\n${historyText}\nUser: ${userPrompt}\nAssistant:`;
 
         const res = await fetch(url, {
           method: 'POST',
@@ -153,7 +149,7 @@ export default function ChatSidebar({
         const url = `https://api.openai.com/v1/chat/completions`;
 
         const apiMessages = [
-          { role: 'system', content: `${systemPrompt}\n\nCanvas Current JSON State:\n${JSON.stringify(getCanvasState(), null, 2)}` },
+          { role: 'system', content: `${DEFAULT_SYSTEM_PROMPT}\n\nCanvas Current JSON State:\n${JSON.stringify(getCanvasState(), null, 2)}` },
           ...messages
             .filter(m => m.sender !== 'system')
             .map(m => ({
@@ -677,16 +673,6 @@ export default function ChatSidebar({
             </div>
           )}
 
-          <div className="flex flex-col gap-1">
-            <label className="text-[9px] text-slate-500 font-bold uppercase">System Prompt (Train the AI)</label>
-            <textarea
-              rows="4"
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-[10px] text-slate-300 font-mono focus:outline-none resize-none"
-            />
-          </div>
-
           <div className="flex gap-2 justify-end mt-1">
             <button
               onClick={saveSettings}
@@ -696,9 +682,10 @@ export default function ChatSidebar({
             </button>
             <button
               onClick={() => {
-                setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
                 setApiProvider('built-in');
                 setApiKey('');
+                setGeminiModel('gemini-2.5-flash');
+                setOpenaiModel('gpt-4o-mini');
               }}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 font-semibold rounded text-[10px] transition"
             >
